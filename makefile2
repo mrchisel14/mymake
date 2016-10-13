@@ -1,0 +1,7 @@
+#Entire line comment
+CC=g++ #After Macro
+CFLAGS=-I. -ansi -pedantic -Wall -std=c++11
+COFLAGS=-c -I. -ansi -pedantic -Wall -std=c++11
+
+.cpp.x: 
+	$(CC) $(CFLAGS) -o $@.x $<

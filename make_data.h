@@ -37,7 +37,7 @@ namespace make_data
     bool DEBUG = false;
     bool recursiveMake(Target target, std::string spacing);
     Target* getTargetFromString(std::string target);
-    bool needsUpdate(Target &t);
+    bool needsUpdate(const Target &t);
     int num_commands = 0, num_names = 0;
     bool parseMacros(std::string &s);
   };

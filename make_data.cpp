@@ -4,6 +4,10 @@
 #include <iterator>
 #include <vector>
 #include <algorithm>
+#include <dirent.h>
+#include <errno.h>
+#include <unistd.h>
+
 
 namespace make_data
 {
@@ -145,32 +149,141 @@ namespace make_data
   }
   bool Data::executeTargets(std::vector<std::string> targets){
     if(targets.size() == 0) targets.push_back("");
+    
     for(auto const &t : targets){
       std::string target = t;
       if(target == ""){
 	target = this->targets[0].Name;
       }
-      Target* actual = getTargetFromString(target);
+      Target* actual;
+      actual = getTargetFromString(target);
+
       if(actual == NULL){
 	std::cout << "No target " << target << " found." << std::endl;
 	return false;
       }
-      bool shouldExecute = false;
-      if(!utilities::file_exists(actual->Name)){
-	shouldExecute = true;
-      }
-      //check if needs updating
-      if(!shouldExecute && needsUpdate(*actual)){
-	shouldExecute = true;
-      }
-      else if(!shouldExecute){
-	std::cout << "mymake: \'" << actual->Name << "\' is up to date." << std::endl;
-      }
-      if(shouldExecute){
-	if(recursiveMake(*actual, "")){
-	
+      if(actual->Name[0] == '.'){
+	//inference rule
+	const char* actualPtr = actual->Name.c_str() + 1;
+	std::vector<Target> inferredTargets;
+	//find *.s1
+	//create inferredTargets and prerequisites and commands
+ 	std::string sourceSuffix = "", targetSuffix = "";
+	if(std::string(actualPtr).find('.') != std::string::npos){
+	  //.s1.s2
+	  sourceSuffix += ".";
+	  while(*actualPtr != '.'){
+	    sourceSuffix += *actualPtr;
+	    ++actualPtr;
+	  }
+	  targetSuffix = std::string(actualPtr);
 	}
-      }      
+	else{
+	  //.s1
+	  std::cout << "Actual string " << *actualPtr << std::endl;
+	  sourceSuffix = std::string((actualPtr - 1));
+	}
+
+	DIR* dp;
+	struct dirent* dirp;
+	std::vector<std::string> files;
+	std::string dir = "";
+	char buf[1024];
+	char* temp = getcwd(buf, 1024);
+
+	if(temp == NULL){
+	  std::cout << "Cannot handle paths larger than " << 1024 << " characters." << std::endl;
+	  return false;
+	}
+	dir = std::string(temp);
+	if((dp = opendir(dir.c_str())) == NULL){
+	  std::cout << "Error \'" << errno << "\' opening directory: " << dir << std::endl;
+	  return false;
+	}
+	else{
+	  while((dirp = readdir(dp)) != NULL){
+	    std::string file_name = std::string(dirp->d_name);
+	    if(file_name.length() > sourceSuffix.length() &&
+	       file_name.compare(file_name.length() - sourceSuffix.length(), sourceSuffix.length(),
+				 sourceSuffix) == 0){
+	      files.push_back(file_name);
+	    }
+	  }
+	  for(auto const &f : files){
+	    std::string target_str = f, prereq = f;
+	    Target new_target;
+	    size_t periodPos = f.rfind(".");
+	    target_str.erase(periodPos, sourceSuffix.length());
+	    std::string targetMinusSuffix = target_str;
+	    target_str += targetSuffix;
+	    new_target.Name = target_str;
+	    Target temp;
+	    temp.Name = prereq;
+	    new_target.prerequisites.push_back(temp);
+	    for(auto &s : actual->commands){
+	      //edit commands
+	      std::string t1 = s;
+	      size_t loc;
+	      while((loc = t1.find("$@")) != std::string::npos){
+		std::string parsed_command = t1.replace(loc, 2, targetMinusSuffix);
+	      }
+	      while((loc = t1.find("$<")) != std::string::npos){
+		std::string parsed_command = t1.replace(loc, 2, f);
+	      }
+	      new_target.commands.push_back(t1);
+	    }
+	    inferredTargets.push_back(new_target);
+ 	  }
+	}
+	//loop through each target
+	/*	for(auto const &t : inferredTargets){
+	  std::cout << t.Name << " : ";
+	  for(auto const &p : t.prerequisites){
+	    std::cout << p.Name << " ";
+	  }
+	  std::cout << std::endl;
+	  for(auto const &c : t.commands){
+	    std::cout << "\t" << c << std::endl;
+	  }
+	  }*/
+	for(auto const &tar : inferredTargets){
+	  
+	  bool shouldExecute = false;
+	  if(!utilities::file_exists(tar.Name)){
+	    shouldExecute = true;
+	  }
+	  //check if needs updating
+	  if(!shouldExecute && needsUpdate(tar)){
+	    shouldExecute = true;
+	  }
+	  else if(!shouldExecute){
+	    std::cout << "mymake: \'" << actual->Name << "\' is up to date." << std::endl;
+	  }
+	  if(shouldExecute){
+	    if(recursiveMake(tar, "")){
+	
+	    }
+	  }      
+	}
+      }
+      else{
+	bool shouldExecute = false;
+	if(!utilities::file_exists(actual->Name)){
+	  shouldExecute = true;
+	}
+	//check if needs updating
+	if(!shouldExecute && needsUpdate(*actual)){
+	  shouldExecute = true;
+	}
+	else if(!shouldExecute){
+	  std::cout << "mymake: \'" << actual->Name << "\' is up to date." << std::endl;
+	}
+	if(shouldExecute){
+	  if(recursiveMake(*actual, "")){
+	
+	  }
+	}      
+      }
     }
     return false;
   }
@@ -222,7 +335,7 @@ namespace make_data
     }
     return NULL;
   }
-  bool Data::needsUpdate(Target &t){
+  bool Data::needsUpdate(const Target &t){
     bool result = false;
     for(auto const &p : t.prerequisites){
       if(p.time_since_epoch > t.time_since_epoch){

@@ -1,0 +1,52 @@
+Project Created by: Shawn Stone
+
+**How To Compile**
+
+In the project direct type 'make'.
+
+******************
+
+**Usage**
+./mymake [options] [target(s)]
+
+Description:
+	A simplified make utility.
+
+Options:
+
+-f mf: with this option, the default makefile is replaced with file mf. Without this option, the
+       program will search for the default makefile or Makefile in the current directory
+       in order.
+       
+-p:    with this option, mymake builds the rules database from the makefile, output the rules
+       and exit
+       
+-k:    with this option, mymake continues execution even when some command fails. Without
+       this option, the default behavior is to report the error and exit when some command fails.
+
+-d:    with this option, mymake will print debugging information while executing. The debugging
+       information should include the rules applied, and the actions (commands) executed. See the
+       sample executable for more details.
+
+-i:    with this option, mymake blocks the SIGINT signal so that Ctrl-C has no effect
+       on the program. Without this option, the default behavior is that mymake will clean up (kill) all
+       of the children that it created and then exit when Ctrl-C is typed.
+
+-t:    with this option, mymake will run for up to roughly num seconds. If the program does
+       not finish in num seconds, it will gracefully self-destruct (clean up all of its children and then
+       exit).
+       
+
+Examples:
+
+./mymake   #Makes the first target in the makefile and uses either 'makefile' or 'Makefile' as the file name.
+./mymake -f makefile1    #makes the first target in 'makefile1'
+./mymake -f makefile1 target1 target2 #make target1 and target2 in makefile1
+
+*********
+
+**Supported Internal Commands**
+
+Per project documentation requirements the only internal command is 'echo'.
+
+*******************************

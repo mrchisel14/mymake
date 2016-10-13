@@ -4,6 +4,10 @@
 #include <fstream>
 #include <string>
 #include <list>
+#include <signal.h>
+#include <unistd.h>
+
+void signalHandler(int param);
 
 int main(int argc, char* argv []){
   int error = 0;
@@ -11,8 +15,9 @@ int main(int argc, char* argv []){
   std::string fileName = "";
   std::list<std::string> options;
   std::vector<std::string> targets;
-  bool output_only = false;
+  bool output_only = false, interruptable = true;
   int seconds = -1;
+  
   for(int i = 1; i < argc; ++i){
     std::string arg = argv[i];
     if(arg == "-f"){
@@ -33,7 +38,7 @@ int main(int argc, char* argv []){
       options.push_front("d");
     }
     else if(arg == "-i"){
-      options.push_front("i");
+      interruptable = false;
     }
     else if (arg == "-t"){
       ++i;
@@ -47,6 +52,9 @@ int main(int argc, char* argv []){
   if(!error){
     //continue execution
     make_data::Data* data;
+    if(!interruptable) signal(SIGINT, SIG_IGN);
+    else signal(SIGINT, signalHandler);
+    sleep(10);
     data = make_data::parseFile(fileName);
     if(!output_only){
       for(auto const &s : options){
@@ -64,4 +72,9 @@ int main(int argc, char* argv []){
   }
 
   return 0;
+}
+void signalHandler(int param){
+  std::cout << "\nClosing..." << std::endl;
+  //call cleanup function here
+  exit(0);
 }
