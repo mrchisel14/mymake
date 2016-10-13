@@ -11,9 +11,21 @@
 
 namespace make_data
 {
+  Data::~Data(){
+    this->abort();
+  }
   Data* parseFile(std::string fileName){
     if(fileName == ""){
-      if(utilities::file_exists("Makefile")){
+      if(utilities::file_exists("mymake1.mk")){
+	fileName = "mymake1.mk";
+      }
+      else if(utilities::file_exists("mymake2.mk")){
+	fileName = "mymake2.mk";
+      }
+      else if(utilities::file_exists("mymake3.mk")){
+	fileName = "mymake3.mk";
+      }
+      else if(utilities::file_exists("Makefile")){
 	fileName = "Makefile";
       }
       else if(utilities::file_exists("makefile")){
@@ -46,7 +58,8 @@ namespace make_data
 	  value = value.substr(1);
 	}
 	result->macros[macro] = value;
-	std::vector<std::string> tokens{std::istream_iterator<std::string>{iss}, std::istream_iterator<std::string>{}};
+	std::vector<std::string> tokens{std::istream_iterator<std::string>{iss},
+	    std::istream_iterator<std::string>{}};
 	if(tokens.size() > 2){
 	  	result->macros[tokens[0]] = tokens[1];
 	}
@@ -55,7 +68,8 @@ namespace make_data
 	if(isTarget(current_line)){
 	  current_line.replace(current_line.find(":"), 1, " "); //Replace colon with space to tokenize
 	  std::istringstream iss(current_line);
-	  std::vector<std::string> tokens{std::istream_iterator<std::string>{iss}, std::istream_iterator<std::string>{}};
+	  std::vector<std::string> tokens{std::istream_iterator<std::string>{iss},
+	      std::istream_iterator<std::string>{}};
 
 	  if(target.Name != "") result->targets.push_back(target);
 	  target.Name = tokens[0];
@@ -260,7 +274,8 @@ namespace make_data
 	    std::cout << "mymake: \'" << actual->Name << "\' is up to date." << std::endl;
 	  }
 	  if(shouldExecute){
-	    if(recursiveMake(tar, "")){
+	    std::vector<std::string> completed;
+	    if(recursiveMake(tar, "", completed, "")){
 	
 	    }
 	  }      
@@ -279,18 +294,31 @@ namespace make_data
 	  std::cout << "mymake: \'" << actual->Name << "\' is up to date." << std::endl;
 	}
 	if(shouldExecute){
-	  if(recursiveMake(*actual, "")){
-	
+	  std::vector<std::string> completed;
+	  if(!recursiveMake(*actual, "", completed, "")){
+	    std::cout << this->fileName << ": Recipe for target \'" << actual->Name << "\' failed."
+		      << std::endl; 
 	  }
 	}      
       }
     }
     return false;
   }
-  bool Data::recursiveMake(Target target, std::string spacing){
+  bool Data::recursiveMake(Target target, std::string spacing, std::vector<std::string> &completedTargets,
+			   std::string previousTarget){
     if(DEBUG)
       std::cout << spacing << "making " << target.Name << std::endl;
     bool valid = true, shouldExecute = false;
+
+    //check circular
+    std::vector<std::string>::iterator it = std::find(completedTargets.begin(), completedTargets.end(),
+						      target.Name);
+    if(it != completedTargets.end()){
+      std::cout << "mymake: Circular Target " << previousTarget << " <- " << target.Name
+		<< " dependency dropped." << std::endl;
+      return true;
+    }
+    completedTargets.push_back(target.Name);
     //check if exists
     if(!utilities::file_exists(target.Name)){
       shouldExecute = true;
@@ -304,10 +332,13 @@ namespace make_data
       for(auto const &p : target.prerequisites){
 	Target* actual = getTargetFromString(p.Name);
 	if(actual == NULL){
-	  valid = recursiveMake(p, spacing + '\t'); //if not target rule
+	  //unable to find target
+	  std::cout << "mymake: *** No rule to make target \'" << p.Name << "\', needed by \'" <<
+	    target.Name << "\'. Stop." << std::endl;
+	  valid = false;
 	}
 	else{
-	  valid = recursiveMake(*actual, spacing + '\t');
+	  valid = recursiveMake(*actual, spacing + '\t', completedTargets, target.Name);
 	}
       }
       if(valid){
@@ -315,12 +346,21 @@ namespace make_data
 	for(auto &c : target.commands){
 	  if(parseMacros(c)){
 	    std::cout << c << std::endl;
+	    this->commandHandler = new exec_handler(c);
+	    int result = commandHandler->executeCommand();
+	    delete(commandHandler);
+	    commandHandler = NULL;
+	    if(result == 1 && !this->ignoreFailedCommand){
+	      valid = false;
+	      break;
+	    }
+	    
 	  }
 	  else{
 	    valid = false;
 	  }
 	}
-      }    
+      }
     }
 
     if(DEBUG)
@@ -412,5 +452,12 @@ namespace make_data
       this->time_since_epoch = st.st_mtime;
     }
   }
-
+  void Data::abort(){
+    if(this->commandHandler != NULL){
+      delete(this->commandHandler);
+    }
+  }
+  void Data::setIgnoreFailedCommand(){
+    this->ignoreFailedCommand = true;
+  }
 }

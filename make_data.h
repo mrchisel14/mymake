@@ -7,16 +7,20 @@
 #include <map>
 #include <static_utilities.h>
 #include <sys/stat.h>
+#include <exec_handler.h>
 
 namespace make_data
 {
   class Data{
   public:
     Data(std::string fileName);
+    ~Data();
     void printFileName();
     void printDump();
     void setDebug();
+    void setIgnoreFailedCommand();
     bool executeTargets(std::vector<std::string> targets);
+    void abort();
   private:
     std::string fileName;
     class Target{
@@ -34,12 +38,15 @@ namespace make_data
     std::map<std::string, std::string> macros;
     std::vector<Target> targets;
     friend make_data::Data* parseFile(std::string fileName);
+    bool ignoreFailedCommand = false;
     bool DEBUG = false;
-    bool recursiveMake(Target target, std::string spacing);
+    bool recursiveMake(Target target, std::string spacing, std::vector<std::string>& completedTargets,
+		       std::string previousTarget);
     Target* getTargetFromString(std::string target);
     bool needsUpdate(const Target &t);
     int num_commands = 0, num_names = 0;
     bool parseMacros(std::string &s);
+    exec_handler* commandHandler;
   };
   Data* parseFile(std::string fileName);
   bool isMacro(std::string s);

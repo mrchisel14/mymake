@@ -1,0 +1,2 @@
+All:
+	sleep 1; echo test
